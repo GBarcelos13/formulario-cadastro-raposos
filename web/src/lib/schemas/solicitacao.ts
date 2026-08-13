@@ -28,9 +28,10 @@ const TODAS_AS_SERIES = Object.values(SERIES_DISPONIVEIS).flat() as [
   ...string[],
 ];
 
-// Mesmos limites do bucket `documentos-matricula` (ver migration
-// 20260813145042_solicitacao_anexos.sql) — mantidos em sincronia manualmente.
-export const ANEXO_TAMANHO_MAXIMO_MB = 5;
+// Mesmos limites do bucket `documentos-matricula` (ver migrations
+// 20260813145042_solicitacao_anexos.sql e
+// 20260813153524_aumentar_limite_anexos.sql) — mantidos em sincronia manualmente.
+export const ANEXO_TAMANHO_MAXIMO_MB = 20;
 export const ANEXO_MIME_TYPES_PERMITIDOS = [
   "image/jpeg",
   "image/png",

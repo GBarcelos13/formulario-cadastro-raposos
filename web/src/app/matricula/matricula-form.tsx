@@ -13,7 +13,10 @@ import {
   enviarSolicitacao,
   type EnviarSolicitacaoState,
 } from "@/lib/actions/solicitacoes";
-import { SERIES_DISPONIVEIS } from "@/lib/schemas/solicitacao";
+import {
+  ANEXO_TAMANHO_MAXIMO_MB,
+  SERIES_DISPONIVEIS,
+} from "@/lib/schemas/solicitacao";
 import { AnexoInput } from "./anexo-input";
 
 type Escola = { id: string; nome: string };
@@ -291,8 +294,8 @@ export function MatriculaForm({
       >
         <SectionLabel>Documentos (opcional)</SectionLabel>
         <p className="-mt-2 text-xs text-muted-foreground">
-          Pode enviar foto ou PDF. Máximo 5MB por arquivo. Se não tiver agora,
-          a secretaria pode pedir depois.
+          Pode enviar foto ou PDF. Máximo {ANEXO_TAMANHO_MAXIMO_MB}MB por
+          arquivo. Se não tiver agora, a secretaria pode pedir depois.
         </p>
 
         {CAMPOS_ANEXO.map(({ campo, tipoStorage, label, accept }) => (
