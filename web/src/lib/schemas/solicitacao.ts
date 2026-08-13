@@ -30,40 +30,46 @@ const TODAS_AS_SERIES = Object.values(SERIES_DISPONIVEIS).flat() as [
 
 // Mesmos limites do bucket `documentos-matricula` (ver migration
 // 20260813145042_solicitacao_anexos.sql) — mantidos em sincronia manualmente.
-const ANEXO_TAMANHO_MAXIMO_MB = 5;
-const ANEXO_MIME_TYPES_PERMITIDOS = [
+export const ANEXO_TAMANHO_MAXIMO_MB = 5;
+export const ANEXO_MIME_TYPES_PERMITIDOS = [
   "image/jpeg",
   "image/png",
   "image/webp",
   "application/pdf",
 ] as const;
 
-// Um <input type="file"> vazio chega como um File de tamanho 0, não como
-// null/undefined — sem esse preprocess, "opcional" nunca seria respeitado.
-function vazioViraIndefinido(value: unknown): unknown {
-  if (value instanceof File && value.size === 0) return undefined;
-  return value;
+// O navegador envia o arquivo direto pro Supabase Storage (ver
+// matricula-form.tsx) — a Server Action nunca vê os bytes do arquivo, só
+// esses metadados, entregues como JSON num campo hidden do form. Isso evita
+// o limite de tamanho/tempo de execução de Server Actions na Vercel.
+const anexoMetadataSchema = z.object({
+  caminho: z.string().min(1),
+  nomeArquivo: z.string().min(1),
+  tamanhoBytes: z.number().int().positive(),
+});
+
+function jsonVazioViraIndefinido(value: unknown): unknown {
+  if (typeof value !== "string" || value === "") return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }
 
 const anexoOpcional = z.preprocess(
-  vazioViraIndefinido,
-  z
-    .file({ error: "Arquivo inválido." })
-    .max(
-      ANEXO_TAMANHO_MAXIMO_MB * 1024 * 1024,
-      `Arquivo muito grande (máximo ${ANEXO_TAMANHO_MAXIMO_MB}MB).`,
-    )
-    .mime(
-      [...ANEXO_MIME_TYPES_PERMITIDOS],
-      "Formato não aceito. Envie PDF, JPG, PNG ou WEBP.",
-    )
-    .optional(),
+  jsonVazioViraIndefinido,
+  anexoMetadataSchema.optional(),
 );
 
 // Mesma definição usada no formulário público (client) e na Server Action
 // que grava em `solicitacoes_matricula` (server) — ver
 // supabase/migrations/20260811213723_schema_inicial.sql para o schema do banco.
 export const solicitacaoMatriculaSchema = z.object({
+  // Gerado no navegador (ver matricula-form.tsx) antes de qualquer upload,
+  // para nomear os arquivos no Storage. A Server Action usa o mesmo id ao
+  // criar a solicitação, em vez de gerar um novo.
+  solicitacaoId: z.uuid(),
   tipo: z.enum(["nova", "rematricula"], {
     error: "Selecione o tipo de solicitação.",
   }),

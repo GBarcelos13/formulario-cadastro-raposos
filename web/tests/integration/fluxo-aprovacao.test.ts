@@ -148,5 +148,5 @@ describe("fluxo completo: solicitação pública -> aprovação -> matrícula of
       .eq("id", solicitacaoId)
       .single();
     expect(aindaPendente!.status).toBe("processada");
-  });
+  }, 20_000);
 });

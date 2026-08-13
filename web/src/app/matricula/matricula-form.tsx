@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Script from "next/script";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,39 @@ import {
   type EnviarSolicitacaoState,
 } from "@/lib/actions/solicitacoes";
 import { SERIES_DISPONIVEIS } from "@/lib/schemas/solicitacao";
+import { AnexoInput } from "./anexo-input";
 
 type Escola = { id: string; nome: string };
 type AnoLetivo = { id: string; ano: number };
 
 const initialState: EnviarSolicitacaoState = { status: "idle" };
+
+const CAMPOS_ANEXO = [
+  {
+    campo: "certidaoNascimento",
+    tipoStorage: "certidao_nascimento",
+    label: "Certidão de nascimento",
+    accept: "image/jpeg,image/png,image/webp,application/pdf",
+  },
+  {
+    campo: "foto",
+    tipoStorage: "foto",
+    label: "Foto do aluno",
+    accept: "image/jpeg,image/png,image/webp",
+  },
+  {
+    campo: "comprovanteResidencia",
+    tipoStorage: "comprovante_residencia",
+    label: "Comprovante de residência",
+    accept: "image/jpeg,image/png,image/webp,application/pdf",
+  },
+  {
+    campo: "outroDocumento",
+    tipoStorage: "outro",
+    label: "Outro documento",
+    accept: "image/jpeg,image/png,image/webp,application/pdf",
+  },
+] as const;
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -39,6 +67,10 @@ export function MatriculaForm({
     enviarSolicitacao,
     initialState,
   );
+  // Gerado uma vez, estável durante a vida do formulário — usado para nomear
+  // os anexos no Storage antes mesmo de enviar o formulário em si.
+  const [solicitacaoId] = useState(() => crypto.randomUUID());
+  const [anexosEnviando, setAnexosEnviando] = useState(0);
 
   const fieldError = (name: string) => state.fieldErrors?.[name];
 
@@ -62,6 +94,8 @@ export function MatriculaForm({
       action={formAction}
       className="relative animate-in fade-in slide-in-from-bottom-3 rounded-2xl border border-border bg-card p-6 shadow-lg duration-700 sm:p-8"
     >
+      <input type="hidden" name="solicitacaoId" value={solicitacaoId} />
+
       {/* Honeypot — invisível para pessoas, visível para bots simples. */}
       <div className="absolute left-[-9999px] top-auto" aria-hidden="true">
         <label htmlFor="website">Não preencha este campo</label>
@@ -261,65 +295,20 @@ export function MatriculaForm({
           a secretaria pode pedir depois.
         </p>
 
-        <div className="grid gap-2">
-          <Label htmlFor="certidaoNascimento">Certidão de nascimento</Label>
-          <Input
-            id="certidaoNascimento"
-            name="certidaoNascimento"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
+        {CAMPOS_ANEXO.map(({ campo, tipoStorage, label, accept }) => (
+          <AnexoInput
+            key={campo}
+            name={campo}
+            tipoStorage={tipoStorage}
+            label={label}
+            accept={accept}
+            solicitacaoId={solicitacaoId}
+            serverError={fieldError(campo)}
+            onUploadingChange={(uploading) =>
+              setAnexosEnviando((n) => n + (uploading ? 1 : -1))
+            }
           />
-          {fieldError("certidaoNascimento") && (
-            <p className="text-sm text-destructive">
-              {fieldError("certidaoNascimento")}
-            </p>
-          )}
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="foto">Foto do aluno</Label>
-          <Input
-            id="foto"
-            name="foto"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-          />
-          {fieldError("foto") && (
-            <p className="text-sm text-destructive">{fieldError("foto")}</p>
-          )}
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="comprovanteResidencia">
-            Comprovante de residência
-          </Label>
-          <Input
-            id="comprovanteResidencia"
-            name="comprovanteResidencia"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-          />
-          {fieldError("comprovanteResidencia") && (
-            <p className="text-sm text-destructive">
-              {fieldError("comprovanteResidencia")}
-            </p>
-          )}
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="outroDocumento">Outro documento</Label>
-          <Input
-            id="outroDocumento"
-            name="outroDocumento"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-          />
-          {fieldError("outroDocumento") && (
-            <p className="text-sm text-destructive">
-              {fieldError("outroDocumento")}
-            </p>
-          )}
-        </div>
+        ))}
       </fieldset>
 
       <div className="mt-4 grid gap-2">
@@ -362,8 +351,17 @@ export function MatriculaForm({
         <p className="mt-4 text-sm text-destructive">{state.message}</p>
       )}
 
-      <Button type="submit" size="lg" disabled={pending} className="mt-6 w-full">
-        {pending ? "Enviando..." : "Enviar solicitação"}
+      <Button
+        type="submit"
+        size="lg"
+        disabled={pending || anexosEnviando > 0}
+        className="mt-6 w-full"
+      >
+        {anexosEnviando > 0
+          ? "Enviando documentos..."
+          : pending
+            ? "Enviando..."
+            : "Enviar solicitação"}
       </Button>
     </form>
   );

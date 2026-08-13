@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { solicitacaoMatriculaSchema } from "@/lib/schemas/solicitacao";
 
 const payloadValido = {
+  solicitacaoId: "8e0a471f-18b7-4d5c-870e-e0b4a3a02b2c",
   tipo: "nova" as const,
   escolaId: "234c917a-7f27-46d5-9454-c618555dfe2d",
   anoLetivoId: "2dde9abe-0b6b-4191-bee9-08241cbbda0a",
@@ -135,51 +136,54 @@ describe("solicitacaoMatriculaSchema", () => {
     expect(resultado.success).toBe(false);
   });
 
+  it("rejeita solicitacaoId que não é um uuid", () => {
+    const resultado = solicitacaoMatriculaSchema.safeParse({
+      ...payloadValido,
+      solicitacaoId: "não-é-uuid",
+    });
+    expect(resultado.success).toBe(false);
+  });
+
   it("aceita quando nenhum documento é anexado", () => {
     const resultado = solicitacaoMatriculaSchema.safeParse(payloadValido);
     expect(resultado.success).toBe(true);
   });
 
-  it("trata um <input type='file'> vazio (File de tamanho 0) como ausente", () => {
-    const arquivoVazio = new File([], "", { type: "application/octet-stream" });
+  it("trata uma string vazia (nenhum arquivo enviado) como ausente", () => {
     const resultado = solicitacaoMatriculaSchema.safeParse({
       ...payloadValido,
-      certidaoNascimento: arquivoVazio,
+      certidaoNascimento: "",
     });
     expect(resultado.success).toBe(true);
   });
 
-  it("aceita um PDF dentro do limite de tamanho", () => {
-    const pdf = new File([new Uint8Array(1024)], "certidao.pdf", {
-      type: "application/pdf",
+  it("aceita metadados de anexo válidos (o navegador já subiu o arquivo pro Storage)", () => {
+    const metadata = JSON.stringify({
+      caminho: `${payloadValido.solicitacaoId}/certidao_nascimento-123-doc.pdf`,
+      nomeArquivo: "doc.pdf",
+      tamanhoBytes: 102400,
     });
     const resultado = solicitacaoMatriculaSchema.safeParse({
       ...payloadValido,
-      certidaoNascimento: pdf,
+      certidaoNascimento: metadata,
     });
     expect(resultado.success).toBe(true);
   });
 
-  it("rejeita arquivo maior que 5MB", () => {
-    const arquivoGrande = new File(
-      [new Uint8Array(6 * 1024 * 1024)],
-      "grande.pdf",
-      { type: "application/pdf" },
-    );
+  it("rejeita metadados de anexo malformados (JSON inválido vira ausente, não erro)", () => {
+    // JSON quebrado é tratado como "sem anexo" pelo preprocess — o campo é
+    // opcional, então isso não deve derrubar o restante do formulário.
     const resultado = solicitacaoMatriculaSchema.safeParse({
       ...payloadValido,
-      certidaoNascimento: arquivoGrande,
+      certidaoNascimento: "{isso não é json válido",
     });
-    expect(resultado.success).toBe(false);
+    expect(resultado.success).toBe(true);
   });
 
-  it("rejeita formato de arquivo não permitido", () => {
-    const executavel = new File([new Uint8Array(10)], "virus.exe", {
-      type: "application/x-msdownload",
-    });
+  it("rejeita metadados de anexo sem os campos obrigatórios", () => {
     const resultado = solicitacaoMatriculaSchema.safeParse({
       ...payloadValido,
-      foto: executavel,
+      certidaoNascimento: JSON.stringify({ caminho: "algum/caminho" }),
     });
     expect(resultado.success).toBe(false);
   });

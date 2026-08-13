@@ -16,6 +16,7 @@ export async function enviarSolicitacao(
   formData: FormData,
 ): Promise<EnviarSolicitacaoState> {
   const raw = {
+    solicitacaoId: formData.get("solicitacaoId"),
     tipo: formData.get("tipo"),
     escolaId: formData.get("escolaId"),
     anoLetivoId: formData.get("anoLetivoId"),
@@ -27,6 +28,8 @@ export async function enviarSolicitacao(
     responsavelTelefone: formData.get("responsavelTelefone"),
     responsavelEmail: formData.get("responsavelEmail") ?? "",
     observacoes: formData.get("observacoes") ?? "",
+    // Metadados (JSON), não o arquivo em si — o navegador já subiu os bytes
+    // direto pro Storage antes de chamar esta action (ver matricula-form.tsx).
     certidaoNascimento: formData.get("certidaoNascimento"),
     foto: formData.get("foto"),
     comprovanteResidencia: formData.get("comprovanteResidencia"),
@@ -71,15 +74,11 @@ export async function enviarSolicitacao(
     };
   }
 
-  // Gerado aqui (em vez de deixar o banco gerar) porque precisamos do id
-  // para nomear os arquivos no Storage antes de gravar `solicitacao_anexos`.
-  // Também evita ter que ler a linha de volta depois do insert — o que
-  // falharia, já que anon não tem SELECT em solicitacoes_matricula.
-  const solicitacaoId = crypto.randomUUID();
-
   const supabase = await createClient();
   const { error } = await supabase.from("solicitacoes_matricula").insert({
-    id: solicitacaoId,
+    // Id gerado no navegador antes do upload dos anexos (não aqui) — ver
+    // schema em src/lib/schemas/solicitacao.ts.
+    id: parsed.data.solicitacaoId,
     tipo: parsed.data.tipo,
     escola_id: parsed.data.escolaId,
     ano_letivo_id: parsed.data.anoLetivoId,
@@ -97,64 +96,39 @@ export async function enviarSolicitacao(
   });
 
   if (error) {
+    console.error("[enviarSolicitacao] falha ao inserir solicitação:", error);
     return {
       status: "error",
       message: "Não foi possível enviar sua solicitação agora. Tente novamente em instantes.",
     };
   }
 
-  await enviarAnexos(supabase, solicitacaoId, [
-    { tipo: "certidao_nascimento", arquivo: parsed.data.certidaoNascimento },
-    { tipo: "foto", arquivo: parsed.data.foto },
-    { tipo: "comprovante_residencia", arquivo: parsed.data.comprovanteResidencia },
-    { tipo: "outro", arquivo: parsed.data.outroDocumento },
-  ]);
+  const anexos = [
+    { tipo: "certidao_nascimento", metadata: parsed.data.certidaoNascimento },
+    { tipo: "foto", metadata: parsed.data.foto },
+    { tipo: "comprovante_residencia", metadata: parsed.data.comprovanteResidencia },
+    { tipo: "outro", metadata: parsed.data.outroDocumento },
+  ].filter(
+    (a): a is { tipo: string; metadata: NonNullable<typeof a.metadata> } =>
+      a.metadata !== undefined,
+  );
+
+  if (anexos.length > 0) {
+    // Metadados apenas — os arquivos já estão no Storage. Falha aqui não
+    // derruba a solicitação principal, que já foi salva com sucesso acima.
+    await supabase.from("solicitacao_anexos").insert(
+      anexos.map(({ tipo, metadata }) => ({
+        solicitacao_id: parsed.data.solicitacaoId,
+        tipo,
+        nome_arquivo: metadata.nomeArquivo,
+        caminho_storage: metadata.caminho,
+        tamanho_bytes: metadata.tamanhoBytes,
+      })),
+    );
+  }
 
   return {
     status: "success",
     message: "Solicitação enviada! A secretaria vai analisar e entrar em contato se precisar de algo.",
   };
-}
-
-type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
-
-/**
- * Envia os anexos (se houver) para o Storage e registra os metadados.
- * Falha de upload não derruba a solicitação principal — o formulário já foi
- * aceito nesse ponto; um anexo que falhou pode ser pedido de novo pela
- * secretaria durante a análise, mas a matrícula em si não deve travar por
- * causa de um arquivo (rede instável em celular, arquivo corrompido etc.).
- */
-async function enviarAnexos(
-  supabase: SupabaseServerClient,
-  solicitacaoId: string,
-  candidatos: Array<{ tipo: string; arquivo: File | undefined }>,
-): Promise<void> {
-  const anexos = candidatos.filter(
-    (c): c is { tipo: string; arquivo: File } => c.arquivo !== undefined,
-  );
-
-  // Em paralelo, não em série — com vários arquivos, uploads sequenciais
-  // somam os round-trips ao Storage e podem estourar o tempo máximo de
-  // execução da função serverless.
-  await Promise.all(
-    anexos.map(async ({ tipo, arquivo }) => {
-      const nomeSanitizado = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const caminho = `${solicitacaoId}/${tipo}-${Date.now()}-${nomeSanitizado}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("documentos-matricula")
-        .upload(caminho, arquivo, { contentType: arquivo.type });
-
-      if (uploadError) return;
-
-      await supabase.from("solicitacao_anexos").insert({
-        solicitacao_id: solicitacaoId,
-        tipo,
-        nome_arquivo: arquivo.name,
-        caminho_storage: caminho,
-        tamanho_bytes: arquivo.size,
-      });
-    }),
-  );
 }
