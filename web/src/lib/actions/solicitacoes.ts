@@ -134,22 +134,27 @@ async function enviarAnexos(
     (c): c is { tipo: string; arquivo: File } => c.arquivo !== undefined,
   );
 
-  for (const { tipo, arquivo } of anexos) {
-    const nomeSanitizado = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const caminho = `${solicitacaoId}/${tipo}-${Date.now()}-${nomeSanitizado}`;
+  // Em paralelo, não em série — com vários arquivos, uploads sequenciais
+  // somam os round-trips ao Storage e podem estourar o tempo máximo de
+  // execução da função serverless.
+  await Promise.all(
+    anexos.map(async ({ tipo, arquivo }) => {
+      const nomeSanitizado = arquivo.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const caminho = `${solicitacaoId}/${tipo}-${Date.now()}-${nomeSanitizado}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("documentos-matricula")
-      .upload(caminho, arquivo, { contentType: arquivo.type });
+      const { error: uploadError } = await supabase.storage
+        .from("documentos-matricula")
+        .upload(caminho, arquivo, { contentType: arquivo.type });
 
-    if (uploadError) continue;
+      if (uploadError) return;
 
-    await supabase.from("solicitacao_anexos").insert({
-      solicitacao_id: solicitacaoId,
-      tipo,
-      nome_arquivo: arquivo.name,
-      caminho_storage: caminho,
-      tamanho_bytes: arquivo.size,
-    });
-  }
+      await supabase.from("solicitacao_anexos").insert({
+        solicitacao_id: solicitacaoId,
+        tipo,
+        nome_arquivo: arquivo.name,
+        caminho_storage: caminho,
+        tamanho_bytes: arquivo.size,
+      });
+    }),
+  );
 }

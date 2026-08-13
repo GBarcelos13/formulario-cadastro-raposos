@@ -2,6 +2,11 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { MatriculaForm } from "./matricula-form";
 
+// Padrão do Next.js pra Server Actions é bem curto (frequentemente ~10s na
+// Vercel). Envio de até 4 anexos ao Storage pode passar disso — o valor
+// aqui vale pra todas as Server Actions desta página, não só o upload.
+export const maxDuration = 30;
+
 export default async function MatriculaPage() {
   const supabase = await createClient();
 
