@@ -70,25 +70,32 @@ export function AnexoInput({
     const nomeSanitizado = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const caminho = `${solicitacaoId}/${tipoStorage}-${Date.now()}-${nomeSanitizado}`;
 
-    const supabase = createClient();
-    const { error } = await supabase.storage
-      .from("documentos-matricula")
-      .upload(caminho, file, { contentType: file.type });
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.storage
+        .from("documentos-matricula")
+        .upload(caminho, file, { contentType: file.type });
 
-    onUploadingChange(false);
+      if (error) {
+        console.error("[AnexoInput] falha ao enviar anexo:", error);
+        setStatus("error");
+        setErro("Falha ao enviar. Tente novamente.");
+        return;
+      }
 
-    if (error) {
+      setStatus("done");
+      setMetadata({
+        caminho,
+        nomeArquivo: file.name,
+        tamanhoBytes: file.size,
+      });
+    } catch (error: unknown) {
+      console.error("[AnexoInput] erro de rede ao enviar anexo:", error);
       setStatus("error");
-      setErro("Falha ao enviar. Tente novamente.");
-      return;
+      setErro("Falha de conexão ao enviar. Verifique sua internet e tente novamente.");
+    } finally {
+      onUploadingChange(false);
     }
-
-    setStatus("done");
-    setMetadata({
-      caminho,
-      nomeArquivo: file.name,
-      tamanhoBytes: file.size,
-    });
   }
 
   function limpar() {
