@@ -251,6 +251,77 @@ export function MatriculaForm({
         </div>
       </fieldset>
 
+      <fieldset
+        className="animate-in fade-in slide-in-from-bottom-2 mt-4 grid gap-4 rounded-xl border border-border bg-secondary/40 p-4 duration-700"
+        style={{ animationDelay: "240ms", animationFillMode: "backwards" }}
+      >
+        <SectionLabel>Documentos (opcional)</SectionLabel>
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Pode enviar foto ou PDF. Máximo 5MB por arquivo. Se não tiver agora,
+          a secretaria pode pedir depois.
+        </p>
+
+        <div className="grid gap-2">
+          <Label htmlFor="certidaoNascimento">Certidão de nascimento</Label>
+          <Input
+            id="certidaoNascimento"
+            name="certidaoNascimento"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+          />
+          {fieldError("certidaoNascimento") && (
+            <p className="text-sm text-destructive">
+              {fieldError("certidaoNascimento")}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="foto">Foto do aluno</Label>
+          <Input
+            id="foto"
+            name="foto"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+          />
+          {fieldError("foto") && (
+            <p className="text-sm text-destructive">{fieldError("foto")}</p>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="comprovanteResidencia">
+            Comprovante de residência
+          </Label>
+          <Input
+            id="comprovanteResidencia"
+            name="comprovanteResidencia"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+          />
+          {fieldError("comprovanteResidencia") && (
+            <p className="text-sm text-destructive">
+              {fieldError("comprovanteResidencia")}
+            </p>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="outroDocumento">Outro documento</Label>
+          <Input
+            id="outroDocumento"
+            name="outroDocumento"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+          />
+          {fieldError("outroDocumento") && (
+            <p className="text-sm text-destructive">
+              {fieldError("outroDocumento")}
+            </p>
+          )}
+        </div>
+      </fieldset>
+
       <div className="mt-4 grid gap-2">
         <Label htmlFor="observacoes">Observações (opcional)</Label>
         <Textarea id="observacoes" name="observacoes" rows={3} />

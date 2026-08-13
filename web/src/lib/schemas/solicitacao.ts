@@ -28,6 +28,38 @@ const TODAS_AS_SERIES = Object.values(SERIES_DISPONIVEIS).flat() as [
   ...string[],
 ];
 
+// Mesmos limites do bucket `documentos-matricula` (ver migration
+// 20260813145042_solicitacao_anexos.sql) — mantidos em sincronia manualmente.
+const ANEXO_TAMANHO_MAXIMO_MB = 5;
+const ANEXO_MIME_TYPES_PERMITIDOS = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+// Um <input type="file"> vazio chega como um File de tamanho 0, não como
+// null/undefined — sem esse preprocess, "opcional" nunca seria respeitado.
+function vazioViraIndefinido(value: unknown): unknown {
+  if (value instanceof File && value.size === 0) return undefined;
+  return value;
+}
+
+const anexoOpcional = z.preprocess(
+  vazioViraIndefinido,
+  z
+    .file({ error: "Arquivo inválido." })
+    .max(
+      ANEXO_TAMANHO_MAXIMO_MB * 1024 * 1024,
+      `Arquivo muito grande (máximo ${ANEXO_TAMANHO_MAXIMO_MB}MB).`,
+    )
+    .mime(
+      [...ANEXO_MIME_TYPES_PERMITIDOS],
+      "Formato não aceito. Envie PDF, JPG, PNG ou WEBP.",
+    )
+    .optional(),
+);
+
 // Mesma definição usada no formulário público (client) e na Server Action
 // que grava em `solicitacoes_matricula` (server) — ver
 // supabase/migrations/20260811213723_schema_inicial.sql para o schema do banco.
@@ -58,6 +90,10 @@ export const solicitacaoMatriculaSchema = z.object({
     .min(10, "Informe um telefone válido com DDD."),
   responsavelEmail: z.email({ error: "E-mail inválido." }).optional().or(z.literal("")),
   observacoes: z.string().trim().optional().or(z.literal("")),
+  certidaoNascimento: anexoOpcional,
+  foto: anexoOpcional,
+  comprovanteResidencia: anexoOpcional,
+  outroDocumento: anexoOpcional,
   consentimentoLgpd: z.literal(true, {
     error: "É necessário concordar com o uso dos dados para enviar a solicitação.",
   }),

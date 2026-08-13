@@ -134,4 +134,53 @@ describe("solicitacaoMatriculaSchema", () => {
     });
     expect(resultado.success).toBe(false);
   });
+
+  it("aceita quando nenhum documento é anexado", () => {
+    const resultado = solicitacaoMatriculaSchema.safeParse(payloadValido);
+    expect(resultado.success).toBe(true);
+  });
+
+  it("trata um <input type='file'> vazio (File de tamanho 0) como ausente", () => {
+    const arquivoVazio = new File([], "", { type: "application/octet-stream" });
+    const resultado = solicitacaoMatriculaSchema.safeParse({
+      ...payloadValido,
+      certidaoNascimento: arquivoVazio,
+    });
+    expect(resultado.success).toBe(true);
+  });
+
+  it("aceita um PDF dentro do limite de tamanho", () => {
+    const pdf = new File([new Uint8Array(1024)], "certidao.pdf", {
+      type: "application/pdf",
+    });
+    const resultado = solicitacaoMatriculaSchema.safeParse({
+      ...payloadValido,
+      certidaoNascimento: pdf,
+    });
+    expect(resultado.success).toBe(true);
+  });
+
+  it("rejeita arquivo maior que 5MB", () => {
+    const arquivoGrande = new File(
+      [new Uint8Array(6 * 1024 * 1024)],
+      "grande.pdf",
+      { type: "application/pdf" },
+    );
+    const resultado = solicitacaoMatriculaSchema.safeParse({
+      ...payloadValido,
+      certidaoNascimento: arquivoGrande,
+    });
+    expect(resultado.success).toBe(false);
+  });
+
+  it("rejeita formato de arquivo não permitido", () => {
+    const executavel = new File([new Uint8Array(10)], "virus.exe", {
+      type: "application/x-msdownload",
+    });
+    const resultado = solicitacaoMatriculaSchema.safeParse({
+      ...payloadValido,
+      foto: executavel,
+    });
+    expect(resultado.success).toBe(false);
+  });
 });
